@@ -232,10 +232,10 @@
       { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14MDB007Z", country: "U1", groupCode: "GP", subGroup: "Factoring", slaMinutes: 180 }
     ];
 
-    const baseRegions = [
-      { label: "Southeast Asia", codes: ["SG", "TH", "BN", "MY", "PH", "ID"] },
-      { label: "Europe & Global", codes: ["GB", "U1"] }
-    ];
+       const baseRegions = [
+            { label: "Asian Countries", codes: ['AU', 'BN', 'CN', 'HK', 'ID', 'IN', 'JP', 'KR', 'M1', 'M2', 'MM', 'MY', 'PH', 'SG', 'TC', 'TH', 'TW', 'VN'] },
+            { label: "Western Countries", codes: ['GD', 'CA', 'U1', 'U2', 'GB'] }
+        ];
 
     const displayRegions = (() => {
       const countrySet = new Set(metadata.map(item => item.country));
