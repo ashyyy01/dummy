@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Control-M Job Monitor</title>
+  <style>
+    :root {
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: #1c1d1f;
+      background-color: #f5f6f8;
+    }
+    body {
+      margin: 0;
+      padding: 2rem;
+    }
+    h1 {
+      margin-bottom: 0.5rem;
+      font-size: 1.8rem;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 1.5rem;
+    }
+    .panel {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(16, 24, 40, 0.08);
+      padding: 1.25rem;
+    }
+    .panel h2 {
+      font-size: 1.1rem;
+      margin: 0 0 0.75rem;
+      color: #475467;
+    }
+    .app-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .app-list button {
+      width: 100%;
+      border: none;
+      background: #f9fafb;
+      color: #111927;
+      padding: 0.65rem 0.75rem;
+      margin-bottom: 0.5rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .app-list button:hover {
+      background: #eef2ff;
+      transform: translateX(2px);
+    }
+    .app-list button.active {
+      background: #4f46e5;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+    }
+    .table-wrapper {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      table-layout: fixed;
+      border: 1px solid #d0d5dd;
+    }
+    thead th {
+      background: linear-gradient(120deg, #dbeafe 0%, #ede9fe 100%);
+      color: #1d2939;
+      text-align: center;
+      font-weight: 600;
+    }
+    .country-head {
+      background: #ffd095;
+      color: #7c2d12;
+    }
+    th, td {
+      padding: 0.4rem 0.35rem;
+      border-bottom: 1px solid #d0d5dd;
+      border-right: 1px solid #d0d5dd;
+      text-align: center;
+      vertical-align: middle;
+    }
+    th:last-child, td:last-child {
+      border-right: none;
+    }
+    .subapp-head {
+      width: 150px;
+      background: #e0e7ff;
+      text-align: center;
+    }
+    .subapp-cell {
+      font-weight: 600;
+      color: #1d2939;
+      background: #fafbff;
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      text-align: left;
+    }
+    tbody tr:nth-child(even) .subapp-cell {
+      background: #f4f6fb;
+    }
+    .country-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      font-size: 0;
+      position: relative;
+    }
+    .country-chip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 130%;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      background: rgba(17, 24, 39, 0.92);
+      color: #fff;
+      font-size: 0.72rem;
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.1s ease;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+    }
+    .country-chip::before {
+      content: "";
+      position: absolute;
+      bottom: 105%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: rgba(17, 24, 39, 0.92);
+      opacity: 0;
+      transition: opacity 0.1s ease;
+    }
+    .country-chip:hover::after,
+    .country-chip:hover::before {
+      opacity: 1;
+    }
+    .chip-empty {
+      background: #edeff5;
+      color: #98a2b3;
+    }
+    .sla-green { background: #059669; }
+    .sla-amber { background: #d97706; }
+    .sla-red { background: #dc2626; }
+    .placeholder {
+      color: #98a2b3;
+      text-align: center;
+      padding: 2rem 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Control-M Job Monitor</h1>
+  <p>Click an app code to view its jobs, current runtime, and SLA risk.</p>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>App Codes</h2>
+      <ul id="appList" class="app-list"></ul>
+    </aside>
+
+    <section class="panel">
+      <h2 id="detailTitle">Select an App Code</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead id="tableHead"></thead>
+          <tbody id="jobTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const metadata = [
+      { appCode: "EDA", controlMGroup: "SGCTM1", jobName: "EDASGDGCR001I", country: "SG", groupCode: "GP", subGroup: "Application", slaMinutes: 180 },
+      { appCode: "EDA", controlMGroup: "SGCTM1", jobName: "EDASGDGCR002I", country: "TH", groupCode: "GP", subGroup: "Card", slaMinutes: 180 },
+      { appCode: "EDA", controlMGroup: "SGCTM1", jobName: "EDASGDGCR003I", country: "BN", groupCode: "GP", subGroup: "CARDS", slaMinutes: 180 },
+      { appCode: "EDA", controlMGroup: "SGCTM1", jobName: "EDASGDGCR004I", country: "GB", groupCode: "GP", subGroup: "Casa", slaMinutes: 180 },
+      { appCode: "EDA", controlMGroup: "SGCTM1", jobName: "EDASGDGCR005I", country: "U1", groupCode: "GP", subGroup: "CASA_OD", slaMinutes: 180 },
+      { appCode: "EDA", controlMGroup: "SGCTM1", jobName: "EDASGDGCR006I", country: "MY", groupCode: "GP", subGroup: "Channels", slaMinutes: 180 },
+      { appCode: "EDA", controlMGroup: "SGCTM1", jobName: "EDASGDGCR007I", country: "PH", groupCode: "GP", subGroup: "Collateral", slaMinutes: 180 },
+      { appCode: "EDA", controlMGroup: "SGCTM1", jobName: "EDASGDGCR008I", country: "ID", groupCode: "GP", subGroup: "Collaterals", slaMinutes: 180 },
+      { appCode: "EDA", controlMGroup: "SGCTM1", jobName: "EDASGDGCR009I", country: "SG", groupCode: "GP", subGroup: "Collection", slaMinutes: 180 },
+      { appCode: "EDW", controlMGroup: "SGCTM1", jobName: "EDASGDFIN0240102E", country: "SG", groupCode: "GP", subGroup: "Curated UIM", slaMinutes: 180 },
+      { appCode: "EDW", controlMGroup: "SGCTM1", jobName: "EDASGDFIN0030100E", country: "TH", groupCode: "GP", subGroup: "Custody Administration", slaMinutes: 180 },
+      { appCode: "EDW", controlMGroup: "SGCTM1", jobName: "EDASGDGTD0020100E", country: "BN", groupCode: "GP", subGroup: "Customer Management", slaMinutes: 180 },
+      { appCode: "EDW", controlMGroup: "SGCTM1", jobName: "EDASGDGTD0020101E", country: "GB", groupCode: "GP", subGroup: "Deposits (GTD)", slaMinutes: 180 },
+      { appCode: "EDW", controlMGroup: "SGCTM1", jobName: "EDASGDGTD0020102E", country: "U1", groupCode: "GP", subGroup: "Factoring", slaMinutes: 180 },
+      { appCode: "EDW", controlMGroup: "SGCTM1", jobName: "EDASGDLNS0040101E", country: "MY", groupCode: "GP", subGroup: "Finance GL", slaMinutes: 180 },
+      { appCode: "EDW", controlMGroup: "SGCTM1", jobName: "EDASGDVSA0040101E", country: "PH", groupCode: "GP", subGroup: "Global Markets", slaMinutes: 180 },
+      { appCode: "EDW", controlMGroup: "SGCTM1", jobName: "EDASGDVSA0040102E", country: "ID", groupCode: "GP", subGroup: "Investments", slaMinutes: 180 },
+      { appCode: "EDW", controlMGroup: "SGCTM1", jobName: "EDASGDAPP0030100E", country: "SG", groupCode: "GP", subGroup: "Limits", slaMinutes: 180 },
+      { appCode: "EDW", controlMGroup: "SGCTM1", jobName: "EDASGDAPP0030101E", country: "SG", groupCode: "GP", subGroup: "Loans", slaMinutes: 180 },
+      { appCode: "UIM", controlMGroup: "SGCTM1", jobName: "EDASGDT331Q3141Z", country: "SG", groupCode: "GP", subGroup: "Loans & Leasing", slaMinutes: 180 },
+      { appCode: "UIM", controlMGroup: "SGCTM1", jobName: "EDASGDT33KC3KH1Z", country: "TH", groupCode: "GP", subGroup: "Loyalty and Rewards", slaMinutes: 180 },
+      { appCode: "UIM", controlMGroup: "SGCTM1", jobName: "EDASGDT33KD3KH1Z", country: "BN", groupCode: "GP", subGroup: "Margin", slaMinutes: 180 },
+      { appCode: "UIM", controlMGroup: "SGCTM1", jobName: "EDASGDT33KC3KJ1Z", country: "GB", groupCode: "GP", subGroup: "NPL", slaMinutes: 180 },
+      { appCode: "UIM", controlMGroup: "SGCTM1", jobName: "EDASGDT33KD3KJ1Z", country: "U1", groupCode: "GP", subGroup: "PARTY", slaMinutes: 180 },
+      { appCode: "UIM", controlMGroup: "SGCTM1", jobName: "EDASGDT33M13KE1Z", country: "MY", groupCode: "GP", subGroup: "Payments", slaMinutes: 180 },
+      { appCode: "UIM", controlMGroup: "SGCTM1", jobName: "EDASGDT33M23KE1Z", country: "PH", groupCode: "GP", subGroup: "Reference", slaMinutes: 180 },
+      { appCode: "UIM", controlMGroup: "SGCTM1", jobName: "EDASGDT33M53KF1Z", country: "ID", groupCode: "GP", subGroup: "Reference data/ Hierarchies", slaMinutes: 180 },
+      { appCode: "UIM", controlMGroup: "SGCTM1", jobName: "EDASGDT33M63KF1Z", country: "SG", groupCode: "GP", subGroup: "Regulatory Reporting", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14RIM07Z", country: "SG", groupCode: "GP", subGroup: "Term Deposit", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14PME001Z", country: "TH", groupCode: "GP", subGroup: "Trade Finance", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14PME002Z", country: "BN", groupCode: "GP", subGroup: "Application", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14PBI007Z", country: "GB", groupCode: "GP", subGroup: "Card", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14PBI012Z", country: "U1", groupCode: "GP", subGroup: "CARDS", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14PBI023Z", country: "MY", groupCode: "GP", subGroup: "Casa", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14PBI008Z", country: "PH", groupCode: "GP", subGroup: "CASA_OD", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14PBI014Z", country: "ID", groupCode: "GP", subGroup: "Channels", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14PMR101Z", country: "SG", groupCode: "GP", subGroup: "Collateral", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14MDB005Z", country: "SG", groupCode: "GP", subGroup: "Collaterals", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14MDB001Z", country: "TH", groupCode: "GP", subGroup: "Collection", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14MDB002Z", country: "BN", groupCode: "GP", subGroup: "Curated UIM", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14MDB004Z", country: "GB", groupCode: "GP", subGroup: "Custody Administration", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14MDB003Z", country: "U1", groupCode: "GP", subGroup: "Customer Management", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14MDB006Z", country: "GB", groupCode: "GP", subGroup: "Deposits (GTD)", slaMinutes: 180 },
+      { appCode: "FRR", controlMGroup: "SGCTM1", jobName: "EDASGDT14MDB007Z", country: "U1", groupCode: "GP", subGroup: "Factoring", slaMinutes: 180 }
+    ];
+
+    const baseRegions = [
+      { label: "Southeast Asia", codes: ["SG", "TH", "BN", "MY", "PH", "ID"] },
+      { label: "Europe & Global", codes: ["GB", "U1"] }
+    ];
+
+    const displayRegions = (() => {
+      const countrySet = new Set(metadata.map(item => item.country));
+      const trimmed = baseRegions
+        .map(region => ({ label: region.label, codes: region.codes.filter(code => countrySet.has(code)) }))
+        .filter(region => region.codes.length);
+      const assigned = new Set(trimmed.flatMap(region => region.codes));
+      const leftovers = [...countrySet].filter(code => !assigned.has(code));
+      if (leftovers.length) trimmed.push({ label: "Other", codes: leftovers });
+      return trimmed;
+    })();
+
+    const orderedCountries = displayRegions.flatMap(region => region.codes);
+
+    const statusCache = metadata.reduce((acc, meta, idx) => {
+      const runtime = 90 + (idx % 6) * 30;
+      const status = runtime > meta.slaMinutes ? "Running" : "Completed";
+      const projectedBreach = status === "Running" && runtime - meta.slaMinutes >= 30;
+      acc[`${meta.jobName}_${meta.country}`] = { status, runtimeMinutes: runtime, projectedBreach };
+      return acc;
+    }, {});
+
+    async function fetchControlMStatus(jobName, country) {
+      // Replace stub with the real Control-M API call per job + country
+      await new Promise(r => setTimeout(r, 80));
+      return statusCache[`${jobName}_${country}`] || { status: "Not Scheduled", runtimeMinutes: 0, projectedBreach: false };
+    }
+
+    function getSlaClass(runtime, sla, projected) {
+      if (runtime > sla) return "sla-red";
+      if (projected) return "sla-amber";
+      return "sla-green";
+    }
+
+    function renderTableHead() {
+      const head = document.getElementById("tableHead");
+      const regionRow = document.createElement("tr");
+      regionRow.innerHTML = `<th rowspan="2" class="subapp-head">Sub-App</th>` +
+        displayRegions.map(region => `<th colspan="${region.codes.length}">${region.label}</th>`).join("");
+      const countryRow = document.createElement("tr");
+      countryRow.id = "countryHeaderRow";
+      countryRow.innerHTML = orderedCountries.map(code => `<th class="country-head">${code}</th>`).join("");
+      head.innerHTML = "";
+      head.append(regionRow, countryRow);
+    }
+
+    function renderAppList(appCodes) {
+      const list = document.getElementById("appList");
+      list.innerHTML = "";
+      const allItem = createAppButton("Show All", "__ALL__");
+      list.appendChild(allItem);
+      appCodes.forEach(code => list.appendChild(createAppButton(code, code)));
+    }
+
+    function createAppButton(label, value) {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.textContent = label;
+      btn.dataset.value = value;
+      btn.addEventListener("click", () => selectApp(value, btn));
+      li.appendChild(btn);
+      return li;
+    }
+
+    function setPlaceholder(message) {
+      const tableBody = document.getElementById("jobTableBody");
+      const colspan = orderedCountries.length + 1;
+      tableBody.innerHTML = `<tr><td colspan="${colspan}" class="placeholder">${message}</td></tr>`;
+    }
+
+    function groupBySubApp(list, showAppCode) {
+      const grouped = list.reduce((acc, item) => {
+        const key = `${item.appCode}::${item.subGroup}`;
+        if (!acc[key]) {
+          acc[key] = { label: showAppCode ? `${item.subGroup} (${item.appCode})` : item.subGroup, entries: [] };
+        }
+        acc[key].entries.push(item);
+        return acc;
+      }, {});
+      return Object.values(grouped).sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    async function buildRow(label, entries) {
+      const cellHtml = {};
+      orderedCountries.forEach(code => {
+        cellHtml[code] = `<td><span class="country-chip chip-empty">—</span></td>`;
+      });
+
+      const tasks = entries.map(meta => {
+        if (!cellHtml[meta.country]) return null;
+        return (async () => {
+          const status = await fetchControlMStatus(meta.jobName, meta.country);
+          const slaClass = getSlaClass(status.runtimeMinutes, meta.slaMinutes, status.projectedBreach);
+          const tooltip = `${meta.jobName} • ${meta.country} • ${status.status} • ${status.runtimeMinutes}m / SLA ${meta.slaMinutes}m`;
+          cellHtml[meta.country] = `<td><span class="country-chip ${slaClass}" data-tooltip="${tooltip}"></span></td>`;
+        })();
+      }).filter(Boolean);
+
+      await Promise.all(tasks);
+      const cells = orderedCountries.map(code => cellHtml[code] || `<td><span class="country-chip chip-empty" data-tooltip="No run scheduled"></span></td>`).join("");
+      return `<tr><td class="subapp-cell">${label}</td>${cells}</tr>`;
+    }
+
+    async function selectApp(appCode, button) {
+      document.querySelectorAll(".app-list button").forEach(btn => btn.classList.remove("active"));
+      if (button) button.classList.add("active");
+      const showAll = appCode === "__ALL__";
+      const detailTitle = showAll ? "All App Codes" : `Sub-Apps for ${appCode}`;
+      document.getElementById("detailTitle").textContent = detailTitle;
+      const filtered = showAll ? metadata : metadata.filter(item => item.appCode === appCode);
+      if (!filtered.length) {
+        setPlaceholder("No jobs configured for this selection.");
+        return;
+      }
+      setPlaceholder("Loading…");
+      const grouped = groupBySubApp(filtered, showAll);
+      const rows = await Promise.all(grouped.map(group => buildRow(group.label, group.entries)));
+      document.getElementById("jobTableBody").innerHTML = rows.join("");
+    }
+
+    function init() {
+      renderTableHead();
+      const uniqueApps = [...new Set(metadata.map(item => item.appCode))];
+      renderAppList(uniqueApps);
+      setPlaceholder("Select an App Code.");
+      const firstBtn = document.querySelector(".app-list button");
+      if (firstBtn) {
+        firstBtn.click();
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>
